@@ -225,7 +225,7 @@
   </div>
   <div id="suninfo" style="display:none"></div>
   <div id="banner">Chargement…</div>
-  <div class="overlay" id="verBadge">v6</div>
+  <div class="overlay" id="verBadge">v7</div>
   <div id="loader"><div class="ring"></div></div>
 </div>
 
@@ -295,8 +295,8 @@ const state = {
 };
 
 /* ── Carte Leaflet ── */
-const map = L.map("map", {zoomControl:true, attributionControl:true})
-  .setView([48.8906, 2.3199], 17); // Métro Brochant, Paris 17ᵉ
+const map = L.map("map", {zoomControl:true, attributionControl:true, zoomSnap:0.25, zoomDelta:0.5})
+  .setView([48.8906, 2.3199], 18.5); // Métro Brochant, Paris 17ᵉ — ≈ 50 m de rayon à l'ouverture
 map.zoomControl.setPosition("bottomright");
 
 L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
@@ -597,8 +597,8 @@ async function doSearch(){
       d.onclick = ()=>{
         closeSearch();
         const la = parseFloat(it.lat), lo = parseFloat(it.lon);
-        /* zoom 18 ≈ environ 100 m à la ronde sur mobile */
-        map.setView([la, lo], 18);
+        /* zoom 18.5 ≈ environ 50 m de rayon sur mobile */
+        map.setView([la, lo], 18.5);
         placeMarker(la, lo, parts[0]);
       };
       searchResults.appendChild(d);
