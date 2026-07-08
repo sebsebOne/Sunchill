@@ -48,7 +48,7 @@
   #mapwrap{position:relative; flex:1; min-height:0;}
   #map{position:absolute; inset:0; background:#DDD;}
   #sunCanvas{
-    position:absolute; inset:0; z-index:640; pointer-events:none;
+    position:absolute; inset:0; z-index:550; pointer-events:none;
     mix-blend-mode:multiply;
   }
   .leaflet-control-attribution{font-size:9px !important;}
@@ -160,11 +160,23 @@
   }
   @keyframes spin{to{transform:rotate(360deg);}}
   /* ── Pin de recherche ── */
+  .sun-pin-wrap{ position:relative; width:30px; height:30px; }
+  .sun-pin-ring{
+    position:absolute; left:50%; bottom:1px; width:14px; height:14px;
+    margin-left:-7px; border-radius:50%;
+    background:rgba(255,200,51,.55);
+    animation:sunPulse 1.6s ease-out infinite;
+  }
+  @keyframes sunPulse{
+    0%{ transform:scale(1); opacity:.8; }
+    100%{ transform:scale(3.4); opacity:0; }
+  }
   .sun-pin{
-    width:30px; height:30px; border-radius:50% 50% 50% 0;
+    position:absolute; inset:0;
+    border-radius:50% 50% 50% 0;
     transform:rotate(-45deg); transform-origin:center;
     background:radial-gradient(circle at 35% 35%, #FFE9A0, #FFC833 60%, #F5A623);
-    border:2.5px solid #FFF; box-shadow:0 3px 10px rgba(0,0,0,.4);
+    border:2.5px solid #FFF; box-shadow:0 3px 10px rgba(0,0,0,.45);
     display:flex; align-items:center; justify-content:center;
   }
   .sun-pin::after{
@@ -225,7 +237,7 @@
   </div>
   <div id="suninfo" style="display:none"></div>
   <div id="banner">Chargement…</div>
-  <div class="overlay" id="verBadge">v7</div>
+  <div class="overlay" id="verBadge">v8</div>
   <div id="loader"><div class="ring"></div></div>
 </div>
 
