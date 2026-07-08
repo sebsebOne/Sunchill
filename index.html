@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>SunChill — Trouve le soleil</title>
+<meta name="description" content="Trouvez en un coup d'œil les rues et terrasses au soleil, à toute heure de la journée.">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#232B3C">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="SunChill">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+  :root{
+    --ink:#1E2433; --panel:#232B3C; --panel-2:#2C3549;
+    --sun:#FFC833; --sun-deep:#F5A623; --cream:#F3ECDC; --muted:#8E99B3;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{
+    font-family:"Avenir Next","Trebuchet MS",system-ui,sans-serif;
+    background:var(--ink); color:var(--cream);
+    display:flex; flex-direction:column; height:100dvh; overflow:hidden;
+  }
+  header{
+    display:flex; align-items:center; gap:.55rem;
+    padding:.5rem .75rem; background:var(--panel);
+    border-bottom:1px solid #39435C; z-index:1200; position:relative;
+  }
+  .logo{display:flex;align-items:center;gap:.4rem;font-weight:700;letter-spacing:.05em;font-size:1rem;}
+  .disc{
+    width:20px;height:20px;border-radius:50%;
+    background:radial-gradient(circle at 35% 35%, #FFE9A0, var(--sun) 60%, var(--sun-deep));
+    box-shadow:0 0 10px rgba(255,200,51,.7);
+  }
+  .logo b{color:var(--sun);}
+  header .spacer{flex:1;}
+  #dateInput{
+    background:var(--panel-2); color:var(--cream);
+    border:1px solid #46536F; border-radius:8px;
+    padding:.35rem .4rem; font:inherit; font-size:.8rem;
+    color-scheme:dark; max-width:130px;
+  }
+  /* ── Carte ── */
+  #mapwrap{position:relative; flex:1; min-height:0;}
+  #map{position:absolute; inset:0; background:#DDD;}
+  #sunCanvas{
+    position:absolute; inset:0; z-index:640; pointer-events:none;
+    mix-blend-mode:multiply;
+  }
+  .leaflet-control-attribution{font-size:9px !important;}
+  /* ── Loupe & recherche ── */
+  #searchBtn{
+    position:absolute; top:.6rem; left:.6rem; z-index:900;
+    width:44px; height:44px; border-radius:50%; border:none; cursor:pointer;
+    background:radial-gradient(circle at 35% 35%, #FFE9A0, var(--sun) 60%, var(--sun-deep));
+    color:#3A2A00; font-size:1.15rem;
+    box-shadow:0 2px 10px rgba(0,0,0,.35);
+  }
+  #searchBox{
+    position:absolute; top:.6rem; left:.6rem; right:.6rem; z-index:950;
+    display:none; background:var(--panel); border:1px solid #46536F;
+    border-radius:14px; padding:.55rem; box-shadow:0 8px 24px rgba(0,0,0,.45);
+  }
+  #searchBox .row{display:flex; gap:.4rem;}
+  #searchInput{
+    flex:1; background:var(--panel-2); color:var(--cream);
+    border:1px solid #46536F; border-radius:999px;
+    padding:.5rem .9rem; font:inherit; font-size:.9rem; min-width:0;
+  }
+  #searchInput::placeholder{color:#6B7692;}
+  #searchClose{
+    width:38px; height:38px; border-radius:50%; border:1px solid #46536F;
+    background:var(--panel-2); color:var(--cream); cursor:pointer; font-size:1rem; flex:0 0 auto;
+  }
+  #searchResults{margin-top:.4rem; max-height:38vh; overflow-y:auto;}
+  #searchResults .res{
+    padding:.55rem .6rem; font-size:.82rem; cursor:pointer;
+    border-top:1px solid #39435C; line-height:1.35;
+  }
+  #searchResults .res:hover{background:#38445E;}
+  #searchResults .res small{color:var(--muted); display:block;}
+  /* ── Infos / bandeau ── */
+  #banner{
+    position:absolute; bottom:.6rem; left:50%; transform:translateX(-50%);
+    z-index:900; background:rgba(30,36,51,.9); border:1px solid #46536F;
+    border-radius:12px; padding:.35rem .8rem; font-size:.7rem;
+    max-width:94%; text-align:center; line-height:1.4; pointer-events:none;
+  }
+  #banner.warn{border-color:var(--sun); color:#FFE1A0;}
+  #suninfo{
+    position:absolute; top:.6rem; right:.6rem; z-index:900;
+    background:rgba(30,36,51,.9); border:1px solid #46536F; border-radius:10px;
+    padding:.35rem .55rem; font-size:.68rem; line-height:1.5; color:var(--muted);
+    text-align:right; pointer-events:none;
+  }
+  #suninfo b{color:var(--cream);}
+  /* ── Contrôles temps ── */
+  #controls{
+    background:var(--panel); border-top:1px solid #39435C;
+    padding:2.5rem .85rem calc(.7rem + env(safe-area-inset-bottom));
+    display:flex; flex-direction:column; gap:.45rem; z-index:1200; position:relative;
+  }
+  .timerow{display:flex; align-items:center; gap:.65rem;}
+  #playBtn{
+    width:42px; height:42px; border-radius:50%; border:none; flex:0 0 auto;
+    background:radial-gradient(circle at 35% 35%, #FFE9A0, var(--sun) 60%, var(--sun-deep));
+    color:#3A2A00; font-size:1rem; cursor:pointer;
+    box-shadow:0 0 12px rgba(255,200,51,.4);
+  }
+  #playBtn:active{transform:scale(.93);}
+  .sliderwrap{flex:1; position:relative;}
+  #timeBubble{
+    position:absolute; top:-2.35rem; transform:translateX(-50%);
+    background:var(--panel-2); border:1.5px solid var(--sun); color:var(--sun);
+    font-weight:700; font-variant-numeric:tabular-nums; font-size:1rem;
+    padding:.14rem .55rem; border-radius:9px; white-space:nowrap;
+    pointer-events:none; box-shadow:0 3px 10px rgba(0,0,0,.35);
+  }
+  #timeBubble::after{
+    content:""; position:absolute; left:50%; bottom:-6px; transform:translateX(-50%);
+    border:6px solid transparent; border-top-color:var(--sun); border-bottom:none;
+  }
+  input[type="range"]{
+    -webkit-appearance:none; appearance:none; width:100%; height:14px; border-radius:999px;
+    background:linear-gradient(90deg,
+      #1B2340 0%, #37456F 8%, #C4744F 15%, #FFC46B 25%,
+      #BFE3FF 42%, #A9DBFF 58%,
+      #FFC46B 76%, #C4744F 85%, #37456F 93%, #1B2340 100%);
+    outline:none; cursor:pointer; border:1px solid #46536F;
+  }
+  input[type="range"]::-webkit-slider-thumb{
+    -webkit-appearance:none; appearance:none;
+    width:30px; height:30px; border-radius:50%;
+    background:radial-gradient(circle at 35% 35%, #FFF3C4, var(--sun) 55%, var(--sun-deep));
+    border:2px solid #FFF; box-shadow:0 0 10px rgba(255,200,51,.8); cursor:grab;
+  }
+  input[type="range"]::-moz-range-thumb{
+    width:28px; height:28px; border-radius:50%;
+    background:radial-gradient(circle at 35% 35%, #FFF3C4, var(--sun) 55%, var(--sun-deep));
+    border:2px solid #FFF; box-shadow:0 0 10px rgba(255,200,51,.8); cursor:grab;
+  }
+  #verBadge{
+    bottom:.65rem; left:.6rem; z-index:900;
+    background:rgba(30,36,51,.75); border:1px solid #39435C; border-radius:7px;
+    padding:.1rem .4rem; font-size:.62rem; color:#8E99B3; position:absolute;
+  }
+  #loader{
+    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    z-index:920; display:none; pointer-events:none;
+  }
+  #loader .ring{
+    width:44px; height:44px; border-radius:50%;
+    border:5px solid rgba(35,43,60,.35); border-top-color:#FFC833;
+    animation:spin .8s linear infinite;
+    filter:drop-shadow(0 2px 6px rgba(0,0,0,.35));
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+  /* ── Pin de recherche ── */
+  .sun-pin{
+    width:30px; height:30px; border-radius:50% 50% 50% 0;
+    transform:rotate(-45deg); transform-origin:center;
+    background:radial-gradient(circle at 35% 35%, #FFE9A0, #FFC833 60%, #F5A623);
+    border:2.5px solid #FFF; box-shadow:0 3px 10px rgba(0,0,0,.4);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .sun-pin::after{
+    content:"☀"; transform:rotate(45deg); font-size:14px; color:#4A3300;
+  }
+  .leaflet-popup-content{font-family:inherit; font-weight:600; margin:.55rem .85rem;}
+  /* ── Pop-up pub ── */
+  #adOverlay{
+    position:fixed; inset:0; z-index:3000; display:none;
+    background:rgba(12,16,28,.55); backdrop-filter:blur(2px);
+    align-items:center; justify-content:center; padding:1.2rem;
+  }
+  #adBox{
+    width:min(340px, 92vw); background:#FFF; color:#222; border-radius:16px;
+    overflow:hidden; box-shadow:0 20px 60px rgba(0,0,0,.5); position:relative;
+    font-family:system-ui, sans-serif;
+  }
+  #adClose{
+    position:absolute; top:.5rem; right:.5rem;
+    width:30px; height:30px; border-radius:50%; border:none;
+    background:rgba(0,0,0,.55); color:#FFF; font-size:.85rem; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+  }
+  #adClose:disabled{opacity:.75; cursor:default; font-size:.7rem;}
+  #adBox .visual{
+    height:150px;
+    background:linear-gradient(135deg, #FFC833, #FF8A5C 60%, #FF5C8A);
+    display:flex; align-items:center; justify-content:center;
+    font-size:2.6rem;
+  }
+  #adBox .body{padding:.9rem 1rem 1.1rem;}
+  #adBox .body h3{font-size:1rem; margin-bottom:.3rem;}
+  #adBox .body p{font-size:.8rem; color:#666; line-height:1.45;}
+  #adBox .tag{
+    display:inline-block; margin-top:.6rem; font-size:.62rem; letter-spacing:.08em;
+    color:#999; border:1px solid #DDD; border-radius:4px; padding:.12rem .4rem;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo"><span class="disc"></span>Sun<b>Chill</b></div>
+  <span class="spacer"></span>
+  <input type="date" id="dateInput" title="Date">
+</header>
+
+<div id="mapwrap">
+  <div id="map"></div>
+  <canvas id="sunCanvas"></canvas>
+  <button id="searchBtn" title="Rechercher une adresse">🔍</button>
+  <div id="searchBox">
+    <div class="row">
+      <input type="search" id="searchInput" placeholder="Adresse, bar, quartier…" autocomplete="off">
+      <button id="searchClose">✕</button>
+    </div>
+    <div id="searchResults"></div>
+  </div>
+  <div id="suninfo" style="display:none"></div>
+  <div id="banner">Chargement…</div>
+  <div class="overlay" id="verBadge">v6</div>
+  <div id="loader"><div class="ring"></div></div>
+</div>
+
+<div id="controls">
+  <div class="timerow">
+    <button id="playBtn" title="Lecture / pause">▶</button>
+    <div class="sliderwrap">
+      <div id="timeBubble">14:00</div>
+      <input type="range" id="timeSlider" min="300" max="1380" step="5" value="840">
+    </div>
+  </div>
+</div>
+
+<!-- Pop-up publicité -->
+<div id="adOverlay">
+  <div id="adBox">
+    <button id="adClose" disabled>5</button>
+    <div class="visual">☀️🍹</div>
+    <div class="body">
+      <h3>Votre publicité ici</h3>
+      <p>Emplacement réservé — ici s'affichera une annonce (AdSense ou régie de votre choix) une fois l'application publiée.</p>
+      <span class="tag">PUBLICITÉ</span>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+"use strict";
+/* ═══════════ SunChill v3 — Leaflet + surcouche solaire ═══════════ */
+
+const rad = Math.PI/180, deg = 180/Math.PI;
+const dayMs = 86400000, J1970 = 2440588, J2000 = 2451545, E = rad*23.4397;
+
+/* ── Position du soleil (algorithme astronomique) ── */
+function toDays(date){ return date.valueOf()/dayMs - 0.5 + J1970 - J2000; }
+function sunPosition(date, lat, lng){
+  const lw = rad*-lng, phi = rad*lat, d = toDays(date);
+  const M = rad*(357.5291 + 0.98560028*d);
+  const C = rad*(1.9148*Math.sin(M) + 0.02*Math.sin(2*M) + 0.0003*Math.sin(3*M));
+  const L = M + C + rad*102.9372 + Math.PI;
+  const dec = Math.asin(Math.sin(E)*Math.sin(L));
+  const ra  = Math.atan2(Math.sin(L)*Math.cos(E), Math.cos(L));
+  const H   = rad*(280.16 + 360.9856235*d) - lw - ra;
+  return {
+    altitude: Math.asin(Math.sin(phi)*Math.sin(dec) + Math.cos(phi)*Math.cos(dec)*Math.cos(H)),
+    azimuth : Math.atan2(Math.sin(H), Math.cos(H)*Math.sin(phi) - Math.tan(dec)*Math.cos(phi))
+  };
+}
+function lastSunday(y,m){ const l=new Date(Date.UTC(y,m,0)); return l.getUTCDate()-l.getUTCDay(); }
+function isParisDST(y,m,d){
+  if(m>3&&m<10) return true;
+  if(m<3||m>10) return false;
+  return m===3 ? d>=lastSunday(y,3) : d<lastSunday(y,10);
+}
+function localDate(str, minutes){
+  const [y,m,d] = str.split("-").map(Number);
+  return new Date(Date.UTC(y, m-1, d, 0, minutes - (isParisDST(y,m,d)?2:1)*60));
+}
+
+/* ── État ── */
+const state = {
+  dateStr:"", minutes:840,
+  buildings:[],          // {latlngs:[[lat,lon]...], h}
+  loadedBounds:null, loading:false, netFailed:false,
+  playing:false, marker:null
+};
+
+/* ── Carte Leaflet ── */
+const map = L.map("map", {zoomControl:true, attributionControl:true})
+  .setView([48.8906, 2.3199], 17); // Métro Brochant, Paris 17ᵉ
+map.zoomControl.setPosition("bottomright");
+
+L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
+  attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
+  subdomains:"abcd", maxZoom:20
+}).addTo(map);
+
+/* ── Canvas de surcouche solaire ── */
+const canvas = document.getElementById("sunCanvas");
+const ctx = canvas.getContext("2d");
+let W=0, H=0, DPR=1;
+function resizeCanvas(){
+  DPR = Math.min(window.devicePixelRatio||1, 2);
+  const r = document.getElementById("mapwrap").getBoundingClientRect();
+  W = r.width; H = r.height;
+  canvas.width = W*DPR; canvas.height = H*DPR;
+  canvas.style.width = W+"px"; canvas.style.height = H+"px";
+  render();
+}
+window.addEventListener("resize", resizeCanvas);
+
+/* ── Chargement des bâtiments (OpenStreetMap / Overpass) ── */
+const OVERPASS = [
+  "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
+  "https://overpass.kumi.systems/api/interpreter",
+  "https://overpass-api.de/api/interpreter",
+  "https://overpass.private.coffee/api/interpreter"
+];
+async function fetchOverpass(query){
+  let err;
+  for(let i=0;i<OVERPASS.length;i++){
+    /* progression indiquée par la roue de chargement */
+    try{
+      const ctrl = new AbortController();
+      const to = setTimeout(()=>ctrl.abort(), 30000);
+      const r = await fetch(OVERPASS[i], {
+        method:"POST", body:"data="+encodeURIComponent(query),
+        headers:{"Content-Type":"application/x-www-form-urlencoded"},
+        signal:ctrl.signal
+      });
+      clearTimeout(to);
+      if(!r.ok) throw new Error("HTTP "+r.status);
+      return await r.json();
+    }catch(e){ err = e; }
+  }
+  throw err;
+}
+function parseHeight(t){
+  if(!t) return 16;
+  if(t.height){ const h=parseFloat(String(t.height).replace(",",".")); if(h>0) return Math.min(h,120); }
+  if(t["building:levels"]){ const n=parseFloat(t["building:levels"]); if(n>0) return Math.min(n*3+2,120); }
+  return 16;
+}
+let loadTimer = null;
+function scheduleLoad(){
+  clearTimeout(loadTimer);
+  loadTimer = setTimeout(loadBuildings, 500);
+}
+async function loadBuildings(){
+  if(map.getZoom() < 16){
+    setBanner("Zoomez davantage pour afficher l'ensoleillement (ombres à partir du zoom 16).", false);
+    state.buildings = []; state.loadedBounds = null; render();
+    return;
+  }
+  const b = map.getBounds().pad(0.15);
+  if(state.loadedBounds && state.loadedBounds.contains(map.getBounds())) return;
+  if(state.loading) return;
+  state.loading = true;
+  showLoader(true);
+  /* limiter la zone à ~1,2 km pour rester rapide */
+  const cLat = (b.getSouth()+b.getNorth())/2, cLon = (b.getWest()+b.getEast())/2;
+  const hLat = Math.min((b.getNorth()-b.getSouth())/2, 0.004);
+  const hLon = Math.min((b.getEast()-b.getWest())/2, 0.006);
+  const bbox = [cLat-hLat, cLon-hLon, cLat+hLat, cLon+hLon].map(v=>v.toFixed(5)).join(",");
+  try{
+    const data = await fetchOverpass(`[out:json][timeout:25];way["building"](${bbox});out geom;`);
+    const bl = [];
+    for(const el of data.elements){
+      if(el.type==="way" && el.geometry && el.geometry.length>3){
+        bl.push({latlngs: el.geometry.map(g=>[g.lat,g.lon]), h: parseHeight(el.tags)});
+      }
+    }
+    state.buildings = bl;
+    state.loadedBounds = b;
+    state.netFailed = false;
+    setBanner("", false); /* succès : rien à afficher */
+  }catch(e){
+    state.netFailed = true;
+    const proto = location.protocol;
+    let msg;
+    if(proto === "content:" || (e && /Failed to fetch|NetworkError|Load failed/i.test(e.message||""))){
+      msg = "⚠️ Le navigateur bloque les requêtes réseau depuis ce mode d'ouverture ("+proto+"//). "+
+            "Ouvrez le fichier depuis l'appli <b>Fichiers</b> (dossier Téléchargements) avec Chrome ou Firefox, "+
+            "ou testez sur un ordinateur.";
+    } else {
+      msg = "⚠️ Serveurs OpenStreetMap saturés ("+(e && e.message ? e.message : "délai dépassé")+").";
+    }
+    const b = document.getElementById("banner");
+    b.innerHTML = msg + ' <u style="cursor:pointer" onclick="retryLoad()">↻ Réessayer</u>';
+    b.className = "warn";
+    b.style.pointerEvents = "auto";
+  }
+  state.loading = false;
+  showLoader(false);
+  render();
+}
+function showLoader(on){
+  document.getElementById("loader").style.display = on ? "block" : "none";
+}
+map.on("moveend zoomend", ()=>{ scheduleLoad(); render(); });
+map.on("move zoom", render);
+
+/* enroulement normalisé : tous les polygones tournent dans le même sens,
+   la règle nonzero fait alors une vraie union au lieu d'annulations */
+function addQuad(c, p0, p1, p2, p3){
+  const A = (p1.x-p0.x)*(p1.y+p0.y) + (p2.x-p1.x)*(p2.y+p1.y)
+          + (p3.x-p2.x)*(p3.y+p2.y) + (p0.x-p3.x)*(p0.y+p3.y);
+  if(A >= 0){
+    c.moveTo(p0.x,p0.y); c.lineTo(p1.x,p1.y); c.lineTo(p2.x,p2.y); c.lineTo(p3.x,p3.y);
+  } else {
+    c.moveTo(p3.x,p3.y); c.lineTo(p2.x,p2.y); c.lineTo(p1.x,p1.y); c.lineTo(p0.x,p0.y);
+  }
+  c.closePath();
+}
+function addPoly(c, pts){
+  let A = 0;
+  for(let i=0;i<pts.length;i++){
+    const j=(i+1)%pts.length;
+    A += (pts[j].x-pts[i].x)*(pts[j].y+pts[i].y);
+  }
+  if(A >= 0){
+    c.moveTo(pts[0].x, pts[0].y);
+    for(let i=1;i<pts.length;i++) c.lineTo(pts[i].x, pts[i].y);
+  } else {
+    c.moveTo(pts[pts.length-1].x, pts[pts.length-1].y);
+    for(let i=pts.length-2;i>=0;i--) c.lineTo(pts[i].x, pts[i].y);
+  }
+  c.closePath();
+}
+
+/* ── Rendu : rues/trottoirs jaunes, ombres bleu-gris, bâtiments intacts ── */
+function render(){
+  if(!state.dateStr) return;
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  ctx.clearRect(0,0,W,H);
+  const c = map.getCenter();
+  const sun = sunPosition(localDate(state.dateStr, state.minutes), c.lat, c.lng);
+  updateSunInfo(sun);
+  const alt = sun.altitude;
+
+  if(alt <= 0.6*rad){
+    /* nuit : voile bleu nuit sur toute la ville */
+    ctx.fillStyle = "rgba(58, 68, 108, 0.55)";
+    ctx.fillRect(0,0,W,H);
+    return;
+  }
+  /* sans bâtiments chargés : pas de masque (carte normale) */
+  if(!state.buildings.length || map.getZoom() < 16) return;
+
+  const mPerLat = 110574, mPerLon = 111320*Math.cos(c.lat*rad);
+  const len = 1/Math.tan(alt);
+  const sx = Math.sin(sun.azimuth), sy = Math.cos(sun.azimuth);
+  const pad = 80;
+
+  /* 1 — lumière jaune sur tout le sol (dorée si soleil bas) */
+  const golden = Math.max(0, Math.min(1, 1 - (alt*deg)/14));
+  ctx.fillStyle = `rgb(255, ${Math.round(228 - golden*46)}, ${Math.round(135 - golden*45)})`;
+  ctx.fillRect(0,0,W,H);
+
+  /* 2 — ombres portées : volume balayé par les murs, enroulement normalisé
+        (sans cela, les faces avant/arrière s'annulent et il ne reste
+         qu'une silhouette décalée — bug corrigé en v4) */
+  ctx.fillStyle = "#6E77A0";
+  ctx.beginPath();
+  for(const bld of state.buildings){
+    const L2 = Math.min(bld.h*len, 800);
+    const dLat = (sy*L2)/mPerLat, dLon = (sx*L2)/mPerLon;
+    const P = bld.latlngs, n = P.length;
+    let anyVisible = false;
+    const pts = new Array(n), pts2 = new Array(n);
+    for(let i=0;i<n;i++){
+      const p = map.latLngToContainerPoint(P[i]);
+      pts[i] = p;
+      if(p.x>-pad && p.x<W+pad && p.y>-pad && p.y<H+pad) anyVisible = true;
+      pts2[i] = map.latLngToContainerPoint([P[i][0]+dLat, P[i][1]+dLon]);
+    }
+    bld._pts = anyVisible ? pts : null;
+    if(!anyVisible) continue;
+    for(let i=0;i<n;i++){
+      const j = (i+1)%n;
+      addQuad(ctx, pts[i], pts[j], pts2[j], pts2[i]);
+    }
+    addPoly(ctx, pts);   // l'empreinte comble le cœur du volume balayé
+    addPoly(ctx, pts2);  // et son image projetée
+  }
+  ctx.fill();
+
+  /* 3 — murs visibles côté ombre : effet de hauteur (2,5D) */
+  ctx.fillStyle = "#8B87A0";
+  ctx.beginPath();
+  for(const bld of state.buildings){
+    const pts = bld._pts;
+    if(!pts) continue;
+    const wl = Math.min(2.2 + bld.h*0.10, 5.5); // longueur du mur à l'écran (m)
+    const dLat = (sy*wl)/mPerLat, dLon = (sx*wl)/mPerLon;
+    const P = bld.latlngs, n = P.length;
+    const q = new Array(n);
+    for(let i=0;i<n;i++) q[i] = map.latLngToContainerPoint([P[i][0]+dLat, P[i][1]+dLon]);
+    for(let i=0;i<n;i++){
+      const j = (i+1)%n;
+      addQuad(ctx, pts[i], pts[j], q[j], q[i]);
+    }
+  }
+  ctx.fill();
+
+  /* 4 — toits des bâtiments */
+  ctx.fillStyle = "#F4F1E9";
+  ctx.beginPath();
+  for(const bld of state.buildings){
+    const pts = bld._pts;
+    if(!pts) continue;
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i].x, pts[i].y);
+    ctx.closePath();
+  }
+  ctx.fill();
+  ctx.strokeStyle = "#CCC3B0";
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+}
+
+/* ── Infos soleil ── */
+function fmtTime(min){
+  const h=Math.floor(min/60), m=Math.round(min%60);
+  return String(h).padStart(2,"0")+":"+String(m).padStart(2,"0");
+}
+function updateSunInfo(sun){
+  const el = document.getElementById("suninfo");
+  const alt = sun.altitude*deg;
+  if(alt <= 0.6){ el.innerHTML = "🌙 <b>Soleil couché</b>"; return; }
+  const azN = (sun.azimuth*deg + 180 + 360)%360;
+  const dir = ["N","NE","E","SE","S","SO","O","NO"][Math.round(azN/45)%8];
+  el.innerHTML = `☀️ Hauteur <b>${alt.toFixed(0)}°</b><br>Azimut <b>${azN.toFixed(0)}° ${dir}</b>`;
+}
+function setBanner(txt, warn){
+  const b = document.getElementById("banner");
+  if(!warn && !txt){ b.style.display = "none"; return; }
+  b.style.display = "block";
+  b.textContent = txt;
+  b.className = warn ? "warn" : "";
+  b.style.pointerEvents = "none";
+}
+window.retryLoad = function(){
+  state.loadedBounds = null;
+  state.loading = false;
+  loadBuildings();
+};
+
+/* ── Recherche (loupe) ── */
+const searchBtn = document.getElementById("searchBtn");
+const searchBox = document.getElementById("searchBox");
+const searchInput = document.getElementById("searchInput");
+const searchResults = document.getElementById("searchResults");
+
+searchBtn.addEventListener("click", ()=>{
+  searchBox.style.display = "block";
+  searchBtn.style.display = "none";
+  searchInput.focus();
+});
+document.getElementById("searchClose").addEventListener("click", closeSearch);
+function closeSearch(){
+  searchBox.style.display = "none";
+  searchBtn.style.display = "block";
+  searchResults.innerHTML = "";
+}
+searchInput.addEventListener("keydown", e=>{
+  if(e.key==="Enter"){ e.preventDefault(); doSearch(); }
+});
+async function doSearch(){
+  const q = searchInput.value.trim();
+  if(q.length<3) return;
+  searchResults.innerHTML = '<div class="res">Recherche…</div>';
+  try{
+    const r = await fetch("https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&accept-language=fr&q="+encodeURIComponent(q));
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    const list = await r.json();
+    if(!list.length){
+      searchResults.innerHTML = '<div class="res">Aucun résultat. Essayez « nom + ville ».</div>';
+      return;
+    }
+    searchResults.innerHTML = "";
+    for(const it of list){
+      const d = document.createElement("div");
+      d.className = "res";
+      const parts = it.display_name.split(",");
+      d.innerHTML = `<b>${parts[0]}</b><small>${parts.slice(1,4).join(",")}</small>`;
+      d.onclick = ()=>{
+        closeSearch();
+        const la = parseFloat(it.lat), lo = parseFloat(it.lon);
+        /* zoom 18 ≈ environ 100 m à la ronde sur mobile */
+        map.setView([la, lo], 18);
+        placeMarker(la, lo, parts[0]);
+      };
+      searchResults.appendChild(d);
+    }
+  }catch(e){
+    searchResults.innerHTML = '<div class="res">⚠️ Recherche indisponible ici (réseau bloqué dans l\'aperçu). Ouvrez le fichier téléchargé dans votre navigateur.</div>';
+  }
+}
+
+/* ── Curseur temps + date + animation ── */
+const slider = document.getElementById("timeSlider");
+const timeBubble = document.getElementById("timeBubble");
+function updateBubble(){
+  const min=+slider.min, max=+slider.max, v=+slider.value;
+  const pct=(v-min)/(max-min);
+  const w=slider.clientWidth || slider.getBoundingClientRect().width;
+  timeBubble.style.left = (pct*(w-30)+15)+"px";
+  timeBubble.textContent = fmtTime(v);
+}
+window.addEventListener("resize", updateBubble);
+const dateInput = document.getElementById("dateInput");
+const playBtn = document.getElementById("playBtn");
+
+slider.addEventListener("input", ()=>{
+  state.minutes = +slider.value;
+  updateBubble();
+  render();
+});
+dateInput.addEventListener("change", ()=>{
+  if(dateInput.value){ state.dateStr = dateInput.value; render(); }
+});
+playBtn.addEventListener("click", ()=>{
+  state.playing = !state.playing;
+  playBtn.textContent = state.playing ? "❚❚" : "▶";
+  if(state.playing) requestAnimationFrame(tick);
+});
+let lastT = 0;
+function tick(t){
+  if(!state.playing) return;
+  if(t-lastT > 60){
+    lastT = t;
+    state.minutes += 6;
+    if(state.minutes > 1380) state.minutes = 300;
+    slider.value = state.minutes;
+    updateBubble();
+    render();
+  }
+  requestAnimationFrame(tick);
+}
+
+/* ── Pop-up publicité (fermable après 5 s) ── */
+const adOverlay = document.getElementById("adOverlay");
+const adClose = document.getElementById("adClose");
+setTimeout(()=>{
+  adOverlay.style.display = "flex";
+  let n = 5;
+  adClose.textContent = n;
+  const iv = setInterval(()=>{
+    n--;
+    if(n<=0){
+      clearInterval(iv);
+      adClose.textContent = "✕";
+      adClose.disabled = false;
+    } else adClose.textContent = n;
+  }, 1000);
+}, 8000);
+adClose.addEventListener("click", ()=>{ adOverlay.style.display = "none"; });
+
+/* ── Initialisation ── */
+(function init(){
+  const now = new Date();
+  const p = new Intl.DateTimeFormat("fr-FR",{timeZone:"Europe/Paris",
+    year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hour12:false})
+    .formatToParts(now).reduce((o,x)=>(o[x.type]=x.value,o),{});
+  state.dateStr = `${p.year}-${p.month}-${p.day}`;
+  dateInput.value = state.dateStr;
+  state.minutes = Math.min(1380, Math.max(300, Math.round(((+p.hour)*60+(+p.minute))/5)*5));
+  /* si le soleil est couché à l'heure actuelle, placer le curseur à 14:00 */
+  const sunNow = sunPosition(localDate(state.dateStr, state.minutes), 48.8906, 2.3199);
+  if(sunNow.altitude <= 0.6*rad){
+    state.minutes = 840;
+    setTimeout(()=>setBanner("🌙 Il fait nuit en ce moment — curseur placé à 14:00 pour la démonstration. Glissez-le pour explorer la journée.", false), 400);
+  }
+  slider.value = state.minutes;
+  resizeCanvas();
+  updateBubble();
+  loadBuildings();
+})();
+
+/* Enregistrement du service worker : active le mode installable + hors-ligne partiel */
+if("serviceWorker" in navigator){
+  window.addEventListener("load", ()=>{
+    navigator.serviceWorker.register("service-worker.js").catch(()=>{});
+  });
+}
+</script>
+</body>
+</html>
