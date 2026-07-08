@@ -151,6 +151,14 @@
     background:radial-gradient(circle at 35% 35%, #FFF3C4, var(--sun) 55%, var(--sun-deep));
     border:2px solid #FFF; box-shadow:0 0 10px rgba(255,200,51,.8); cursor:grab;
   }
+  #placesBtn{
+    position:absolute; bottom:.65rem; left:.6rem; z-index:900;
+    width:42px; height:42px; border-radius:50%; cursor:pointer;
+    border:1.5px solid #46536F; background:rgba(30,36,51,.92);
+    font-size:1.1rem; box-shadow:0 2px 8px rgba(0,0,0,.35); opacity:.55;
+    transition:opacity .15s, border-color .15s;
+  }
+  #placesBtn.active{ opacity:1; border-color:#FFC833; }
   #verBadge{
     bottom:.65rem; left:.6rem; z-index:900;
     background:rgba(30,36,51,.75); border:1px solid #39435C; border-radius:7px;
@@ -165,6 +173,12 @@
   #compassArrow{
     color:#E5484D; font-size:1.05rem; line-height:1;
     text-shadow:0 1px 3px rgba(0,0,0,.5);
+  }
+  .place-pin{
+    width:26px; height:26px; border-radius:50%;
+    background:rgba(35,43,60,.88); border:1.5px solid #F3ECDC;
+    display:flex; align-items:center; justify-content:center;
+    font-size:14px; box-shadow:0 2px 6px rgba(0,0,0,.35);
   }
   #loader{
     position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
@@ -247,6 +261,7 @@
   <canvas id="sunCanvas"></canvas>
   <button id="searchBtn" title="Rechercher une adresse">🔍</button>
   <button id="locateBtn" title="Me localiser">📍</button>
+  <button id="placesBtn" class="active" title="Masquer les bars/restaurants">🍽️</button>
   <div id="searchBox">
     <div class="row">
       <input type="search" id="searchInput" placeholder="Adresse, bar, quartier…" autocomplete="off">
@@ -257,7 +272,7 @@
   <div id="suninfo" style="display:none"></div>
   <div id="compass" title="Nord"><div id="compassArrow">▲</div></div>
   <div id="banner">Chargement…</div>
-  <div class="overlay" id="verBadge">v10</div>
+  <div class="overlay" id="verBadge">v0.11</div>
   <div id="loader"><div class="ring"></div></div>
 </div>
 
@@ -323,7 +338,8 @@ const state = {
   dateStr:"", minutes:840,
   buildings:[],          // {latlngs:[[lat,lon]...], h}
   loadedBounds:null, loading:false, netFailed:false,
-  playing:false, marker:null // marqueur du dernier lieu recherché
+  playing:false, marker:null, // marqueur du dernier lieu recherché
+  placesLayer:null, placesVisible:true
 };
 
 /* ── Carte Leaflet ── */
@@ -382,6 +398,19 @@ function parseHeight(t){
   if(t["building:levels"]){ const n=parseFloat(t["building:levels"]); if(n>0) return Math.min(n*3+2,120); }
   return 16;
 }
+function refreshPlaces(list){
+  if(state.placesLayer) map.removeLayer(state.placesLayer);
+  const group = L.layerGroup();
+  for(const p of list){
+    const icon = L.divIcon({
+      className:"", html:'<div class="place-pin">'+p.icon+'</div>',
+      iconSize:[26,26], iconAnchor:[13,13]
+    });
+    L.marker([p.lat, p.lon], {icon}).bindPopup(p.name).addTo(group);
+  }
+  state.placesLayer = group;
+  if(state.placesVisible) group.addTo(map);
+}
 let loadTimer = null;
 function scheduleLoad(){
   clearTimeout(loadTimer);
@@ -404,14 +433,18 @@ async function loadBuildings(){
   const hLon = Math.min((b.getEast()-b.getWest())/2, 0.006);
   const bbox = [cLat-hLat, cLon-hLon, cLat+hLat, cLon+hLon].map(v=>v.toFixed(5)).join(",");
   try{
-    const data = await fetchOverpass(`[out:json][timeout:25];way["building"](${bbox});out geom;`);
-    const bl = [];
+    const data = await fetchOverpass(`[out:json][timeout:25];(way["building"](${bbox});node["amenity"~"^(cafe|bar|restaurant|pub|fast_food|ice_cream|biergarten)$"](${bbox}););out geom;out;`);
+    const bl = [], pl = [];
+    const ICONS = {cafe:"☕",bar:"🍸",restaurant:"🍽️",pub:"🍺",fast_food:"🍔",ice_cream:"🍦",biergarten:"🍻"};
     for(const el of data.elements){
       if(el.type==="way" && el.geometry && el.geometry.length>3){
         bl.push({latlngs: el.geometry.map(g=>[g.lat,g.lon]), h: parseHeight(el.tags)});
+      } else if(el.type==="node" && el.tags && el.tags.amenity && el.tags.name){
+        pl.push({lat:el.lat, lon:el.lon, name:el.tags.name, icon: ICONS[el.tags.amenity]||"📍"});
       }
     }
     state.buildings = bl;
+    refreshPlaces(pl);
     state.loadedBounds = b;
     state.netFailed = false;
     setBanner("", false); /* succès : rien à afficher */
@@ -622,6 +655,15 @@ locateBtn.addEventListener("click", ()=>{
     },
     {enableHighAccuracy:true, timeout:12000}
   );
+});
+const placesBtn = document.getElementById("placesBtn");
+placesBtn.addEventListener("click", ()=>{
+  state.placesVisible = !state.placesVisible;
+  placesBtn.classList.toggle("active", state.placesVisible);
+  placesBtn.title = state.placesVisible ? "Masquer les bars/restaurants" : "Afficher les bars/restaurants";
+  if(!state.placesLayer) return;
+  if(state.placesVisible) state.placesLayer.addTo(map);
+  else map.removeLayer(state.placesLayer);
 });
 function closeSearch(){
   searchBox.style.display = "none";
