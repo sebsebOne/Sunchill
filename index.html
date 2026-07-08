@@ -237,7 +237,7 @@
   </div>
   <div id="suninfo" style="display:none"></div>
   <div id="banner">Chargement…</div>
-  <div class="overlay" id="verBadge">v8</div>
+  <div class="overlay" id="verBadge">v9</div>
   <div id="loader"><div class="ring"></div></div>
 </div>
 
@@ -664,6 +664,9 @@ function tick(t){
 /* ── Pop-up publicité (fermable après 5 s) ── */
 const adOverlay = document.getElementById("adOverlay");
 const adClose = document.getElementById("adClose");
+/* Pop-up publicitaire désactivée pour l'instant (phase de test personnelle).
+   Pour la réactiver : décommenter le bloc ci-dessous. */
+/*
 setTimeout(()=>{
   adOverlay.style.display = "flex";
   let n = 5;
@@ -677,6 +680,7 @@ setTimeout(()=>{
     } else adClose.textContent = n;
   }, 1000);
 }, 8000);
+*/
 adClose.addEventListener("click", ()=>{ adOverlay.style.display = "none"; });
 
 /* ── Initialisation ── */
