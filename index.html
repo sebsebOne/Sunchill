@@ -60,6 +60,14 @@
     color:#3A2A00; font-size:1.15rem;
     box-shadow:0 2px 10px rgba(0,0,0,.35);
   }
+  #locateBtn{
+    position:absolute; top:3.35rem; left:.6rem; z-index:900;
+    width:44px; height:44px; border-radius:50%; border:none; cursor:pointer;
+    background:rgba(30,36,51,.92); border:1.5px solid #46536F;
+    color:#F3ECDC; font-size:1.15rem;
+    box-shadow:0 2px 10px rgba(0,0,0,.35);
+  }
+  #locateBtn.busy{ opacity:.6; }
   #searchBox{
     position:absolute; top:.6rem; left:.6rem; right:.6rem; z-index:950;
     display:none; background:var(--panel); border:1px solid #46536F;
@@ -148,6 +156,16 @@
     background:rgba(30,36,51,.75); border:1px solid #39435C; border-radius:7px;
     padding:.1rem .4rem; font-size:.62rem; color:#8E99B3; position:absolute;
   }
+  #compass{
+    position:absolute; top:.6rem; right:.6rem; z-index:900;
+    width:34px; height:34px; border-radius:50%;
+    background:rgba(30,36,51,.85); border:1px solid #46536F;
+    display:flex; align-items:center; justify-content:center;
+  }
+  #compassArrow{
+    color:#E5484D; font-size:1.05rem; line-height:1;
+    text-shadow:0 1px 3px rgba(0,0,0,.5);
+  }
   #loader{
     position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
     z-index:920; display:none; pointer-events:none;
@@ -228,6 +246,7 @@
   <div id="map"></div>
   <canvas id="sunCanvas"></canvas>
   <button id="searchBtn" title="Rechercher une adresse">🔍</button>
+  <button id="locateBtn" title="Me localiser">📍</button>
   <div id="searchBox">
     <div class="row">
       <input type="search" id="searchInput" placeholder="Adresse, bar, quartier…" autocomplete="off">
@@ -236,8 +255,9 @@
     <div id="searchResults"></div>
   </div>
   <div id="suninfo" style="display:none"></div>
+  <div id="compass" title="Nord"><div id="compassArrow">▲</div></div>
   <div id="banner">Chargement…</div>
-  <div class="overlay" id="verBadge">v9</div>
+  <div class="overlay" id="verBadge">v10</div>
   <div id="loader"><div class="ring"></div></div>
 </div>
 
@@ -303,7 +323,7 @@ const state = {
   dateStr:"", minutes:840,
   buildings:[],          // {latlngs:[[lat,lon]...], h}
   loadedBounds:null, loading:false, netFailed:false,
-  playing:false, marker:null
+  playing:false, marker:null // marqueur du dernier lieu recherché
 };
 
 /* ── Carte Leaflet ── */
@@ -580,6 +600,29 @@ searchBtn.addEventListener("click", ()=>{
   searchInput.focus();
 });
 document.getElementById("searchClose").addEventListener("click", closeSearch);
+const locateBtn = document.getElementById("locateBtn");
+locateBtn.addEventListener("click", ()=>{
+  if(!navigator.geolocation){
+    setBanner("⚠️ La géolocalisation n'est pas disponible sur cet appareil/navigateur.", true);
+    return;
+  }
+  locateBtn.classList.add("busy");
+  navigator.geolocation.getCurrentPosition(
+    pos=>{
+      locateBtn.classList.remove("busy");
+      const {latitude, longitude} = pos.coords;
+      map.setView([latitude, longitude], 18.5);
+      placeMarker(latitude, longitude, "Ma position");
+    },
+    err=>{
+      locateBtn.classList.remove("busy");
+      const msg = err.code===1 ? "Autorisez la localisation dans les réglages du navigateur pour utiliser ce bouton."
+                                : "Position indisponible pour le moment. Réessayez.";
+      setBanner("⚠️ "+msg, true);
+    },
+    {enableHighAccuracy:true, timeout:12000}
+  );
+});
 function closeSearch(){
   searchBox.style.display = "none";
   searchBtn.style.display = "block";
@@ -588,6 +631,16 @@ function closeSearch(){
 searchInput.addEventListener("keydown", e=>{
   if(e.key==="Enter"){ e.preventDefault(); doSearch(); }
 });
+function placeMarker(lat, lon, name){
+  if(state.marker) map.removeLayer(state.marker);
+  const icon = L.divIcon({
+    className:"",
+    html:'<div class="sun-pin-wrap"><div class="sun-pin-ring"></div><div class="sun-pin"></div></div>',
+    iconSize:[30,30], iconAnchor:[15,30], popupAnchor:[0,-30]
+  });
+  state.marker = L.marker([lat, lon], {icon, zIndexOffset:1000}).addTo(map)
+    .bindPopup(name).openPopup();
+}
 async function doSearch(){
   const q = searchInput.value.trim();
   if(q.length<3) return;
