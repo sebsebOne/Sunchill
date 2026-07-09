@@ -55,17 +55,15 @@
   /* ── Loupe & recherche ── */
   #searchBtn{
     position:absolute; top:.6rem; left:.6rem; z-index:900;
-    width:44px; height:44px; border-radius:50%; border:none; cursor:pointer;
-    background:radial-gradient(circle at 35% 35%, #FFE9A0, var(--sun) 60%, var(--sun-deep));
-    color:#3A2A00; font-size:1.15rem;
-    box-shadow:0 2px 10px rgba(0,0,0,.35);
+    width:40px; height:40px; border-radius:50%; cursor:pointer;
+    background:rgba(30,36,51,.85); border:1px solid #46536F;
+    color:var(--cream); font-size:1rem;
   }
   #locateBtn{
-    position:absolute; top:3.35rem; left:.6rem; z-index:900;
-    width:44px; height:44px; border-radius:50%; border:none; cursor:pointer;
-    background:rgba(30,36,51,.92); border:1.5px solid #46536F;
-    color:#F3ECDC; font-size:1.15rem;
-    box-shadow:0 2px 10px rgba(0,0,0,.35);
+    position:absolute; top:3.4rem; left:.6rem; z-index:900;
+    width:40px; height:40px; border-radius:50%; cursor:pointer;
+    background:rgba(30,36,51,.85); border:1px solid #46536F;
+    color:var(--cream); font-size:1rem;
   }
   #locateBtn.busy{ opacity:.6; }
   #searchBox{
@@ -109,31 +107,30 @@
   /* ── Contrôles temps ── */
   #controls{
     background:var(--panel); border-top:1px solid #39435C;
-    padding:2.5rem .85rem calc(.7rem + env(safe-area-inset-bottom));
-    display:flex; flex-direction:column; gap:.45rem; z-index:1200; position:relative;
+    padding:1.8rem .75rem calc(.45rem + env(safe-area-inset-bottom));
+    display:flex; flex-direction:column; gap:.3rem; z-index:1200; position:relative;
   }
   .timerow{display:flex; align-items:center; gap:.65rem;}
   #playBtn{
-    width:42px; height:42px; border-radius:50%; border:none; flex:0 0 auto;
-    background:radial-gradient(circle at 35% 35%, #FFE9A0, var(--sun) 60%, var(--sun-deep));
-    color:#3A2A00; font-size:1rem; cursor:pointer;
-    box-shadow:0 0 12px rgba(255,200,51,.4);
+    width:34px; height:34px; border-radius:50%; flex:0 0 auto;
+    background:transparent; border:1.5px solid #46536F;
+    color:var(--sun); font-size:.85rem; cursor:pointer;
   }
   #playBtn:active{transform:scale(.93);}
   .sliderwrap{flex:1; position:relative;}
   #timeBubble{
-    position:absolute; top:-2.35rem; transform:translateX(-50%);
-    background:var(--panel-2); border:1.5px solid var(--sun); color:var(--sun);
-    font-weight:700; font-variant-numeric:tabular-nums; font-size:1rem;
-    padding:.14rem .55rem; border-radius:9px; white-space:nowrap;
-    pointer-events:none; box-shadow:0 3px 10px rgba(0,0,0,.35);
+    position:absolute; top:-1.75rem; transform:translateX(-50%);
+    background:var(--panel-2); border:1px solid var(--sun); color:var(--sun);
+    font-weight:600; font-variant-numeric:tabular-nums; font-size:.88rem;
+    padding:.08rem .45rem; border-radius:7px; white-space:nowrap;
+    pointer-events:none;
   }
   #timeBubble::after{
     content:""; position:absolute; left:50%; bottom:-6px; transform:translateX(-50%);
     border:6px solid transparent; border-top-color:var(--sun); border-bottom:none;
   }
   input[type="range"]{
-    -webkit-appearance:none; appearance:none; width:100%; height:14px; border-radius:999px;
+    -webkit-appearance:none; appearance:none; width:100%; height:7px; border-radius:999px;
     background:linear-gradient(90deg,
       #1B2340 0%, #37456F 8%, #C4744F 15%, #FFC46B 25%,
       #BFE3FF 42%, #A9DBFF 58%,
@@ -142,25 +139,25 @@
   }
   input[type="range"]::-webkit-slider-thumb{
     -webkit-appearance:none; appearance:none;
-    width:30px; height:30px; border-radius:50%;
-    background:radial-gradient(circle at 35% 35%, #FFF3C4, var(--sun) 55%, var(--sun-deep));
-    border:2px solid #FFF; box-shadow:0 0 10px rgba(255,200,51,.8); cursor:grab;
+    width:22px; height:22px; border-radius:50%;
+    background:var(--sun);
+    border:1.5px solid #FFF; box-shadow:0 1px 4px rgba(0,0,0,.35); cursor:grab;
   }
   input[type="range"]::-moz-range-thumb{
-    width:28px; height:28px; border-radius:50%;
-    background:radial-gradient(circle at 35% 35%, #FFF3C4, var(--sun) 55%, var(--sun-deep));
-    border:2px solid #FFF; box-shadow:0 0 10px rgba(255,200,51,.8); cursor:grab;
+    width:20px; height:20px; border-radius:50%;
+    background:var(--sun);
+    border:1.5px solid #FFF; box-shadow:0 1px 4px rgba(0,0,0,.35); cursor:grab;
   }
   #placesBtn{
     position:absolute; bottom:.65rem; left:.6rem; z-index:900;
-    width:42px; height:42px; border-radius:50%; cursor:pointer;
-    border:1.5px solid #46536F; background:rgba(30,36,51,.92);
-    font-size:1.1rem; box-shadow:0 2px 8px rgba(0,0,0,.35); opacity:.55;
+    width:40px; height:40px; border-radius:50%; cursor:pointer;
+    border:1px solid #46536F; background:rgba(30,36,51,.85);
+    font-size:.95rem; opacity:.5;
     transition:opacity .15s, border-color .15s;
   }
   #placesBtn.active{ opacity:1; border-color:#FFC833; }
   #verBadge{
-    bottom:.65rem; left:.6rem; z-index:900;
+    top:3.4rem; right:.6rem; z-index:900;
     background:rgba(30,36,51,.75); border:1px solid #39435C; border-radius:7px;
     padding:.1rem .4rem; font-size:.62rem; color:#8E99B3; position:absolute;
   }
@@ -215,6 +212,13 @@
     content:"☀"; transform:rotate(45deg); font-size:14px; color:#4A3300;
   }
   .leaflet-popup-content{font-family:inherit; font-weight:600; margin:.55rem .85rem;}
+  .leaflet-popup-content-wrapper{
+    background:#232B3C !important; color:#F3ECDC !important;
+    border:1px solid #46536F; border-radius:10px;
+    box-shadow:0 6px 18px rgba(0,0,0,.5);
+  }
+  .leaflet-popup-tip{ background:#232B3C !important; }
+  .leaflet-popup-close-button{ color:#8E99B3 !important; }
   /* ── Pop-up pub ── */
   #adOverlay{
     position:fixed; inset:0; z-index:3000; display:none;
@@ -272,7 +276,7 @@
   <div id="suninfo" style="display:none"></div>
   <div id="compass" title="Nord"><div id="compassArrow">▲</div></div>
   <div id="banner">Chargement…</div>
-  <div class="overlay" id="verBadge">v0.11</div>
+  <div class="overlay" id="verBadge">v0.12</div>
   <div id="loader"><div class="ring"></div></div>
 </div>
 
@@ -422,15 +426,23 @@ async function loadBuildings(){
     state.buildings = []; state.loadedBounds = null; render();
     return;
   }
-  const b = map.getBounds().pad(0.15);
-  if(state.loadedBounds && state.loadedBounds.contains(map.getBounds())) return;
+  const view = map.getBounds();
+  /* marge fixe de ~120 m : les bâtiments voisins hors écran projettent
+     leurs ombres dans la vue (soleil bas → ombres de 60-100 m) */
+  const cLat0 = (view.getSouth()+view.getNorth())/2;
+  const MARGIN = 120; // mètres
+  const gLat = MARGIN/110574, gLon = MARGIN/(111320*Math.cos(cLat0*Math.PI/180));
+  const b = L.latLngBounds(
+    [view.getSouth()-gLat, view.getWest()-gLon],
+    [view.getNorth()+gLat, view.getEast()+gLon]);
+  if(state.loadedBounds && state.loadedBounds.contains(b)) return;
   if(state.loading) return;
   state.loading = true;
   showLoader(true);
-  /* limiter la zone à ~1,2 km pour rester rapide */
+  /* limiter la zone (~1,2 km max) pour rester rapide */
   const cLat = (b.getSouth()+b.getNorth())/2, cLon = (b.getWest()+b.getEast())/2;
-  const hLat = Math.min((b.getNorth()-b.getSouth())/2, 0.004);
-  const hLon = Math.min((b.getEast()-b.getWest())/2, 0.006);
+  const hLat = Math.min((b.getNorth()-b.getSouth())/2, 0.0052);
+  const hLon = Math.min((b.getEast()-b.getWest())/2, 0.0078);
   const bbox = [cLat-hLat, cLon-hLon, cLat+hLat, cLon+hLon].map(v=>v.toFixed(5)).join(",");
   try{
     const data = await fetchOverpass(`[out:json][timeout:25];(way["building"](${bbox});node["amenity"~"^(cafe|bar|restaurant|pub|fast_food|ice_cream|biergarten)$"](${bbox}););out geom;out;`);
@@ -540,16 +552,18 @@ function render(){
     const L2 = Math.min(bld.h*len, 800);
     const dLat = (sy*L2)/mPerLat, dLon = (sx*L2)/mPerLon;
     const P = bld.latlngs, n = P.length;
-    let anyVisible = false;
+    let footVisible = false, shadowVisible = false;
     const pts = new Array(n), pts2 = new Array(n);
     for(let i=0;i<n;i++){
       const p = map.latLngToContainerPoint(P[i]);
       pts[i] = p;
-      if(p.x>-pad && p.x<W+pad && p.y>-pad && p.y<H+pad) anyVisible = true;
-      pts2[i] = map.latLngToContainerPoint([P[i][0]+dLat, P[i][1]+dLon]);
+      if(p.x>-pad && p.x<W+pad && p.y>-pad && p.y<H+pad) footVisible = true;
+      const p2 = map.latLngToContainerPoint([P[i][0]+dLat, P[i][1]+dLon]);
+      pts2[i] = p2;
+      if(p2.x>-pad && p2.x<W+pad && p2.y>-pad && p2.y<H+pad) shadowVisible = true;
     }
-    bld._pts = anyVisible ? pts : null;
-    if(!anyVisible) continue;
+    bld._pts = footVisible ? pts : null; // murs/toits : seulement si l'empreinte est visible
+    if(!footVisible && !shadowVisible) continue; // ni le bâtiment ni son ombre ne touchent l'écran
     for(let i=0;i<n;i++){
       const j = (i+1)%n;
       addQuad(ctx, pts[i], pts[j], pts2[j], pts2[i]);
