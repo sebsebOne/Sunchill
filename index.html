@@ -166,8 +166,25 @@
     pointer-events:none;
     filter:drop-shadow(0 1px 3px rgba(0,0,0,.45));
   }
+  .place-popup b{ display:block; margin-bottom:.35rem; font-size:.9rem; }
+  .rate-row{ display:flex; gap:.18rem; margin:.1rem 0 .25rem; }
+  .rate-sun{
+    font-size:1.15rem; line-height:1; cursor:pointer; user-select:none;
+    color:#4C5573; transition:color .12s, transform .12s;
+  }
+  .rate-sun:hover{ transform:scale(1.15); }
+  .rate-sun.on{ color:#FFC833; text-shadow:0 0 6px rgba(255,200,51,.55); }
+  .rate-hint{ font-size:.65rem; color:#8E99B3; font-weight:400; }
+  .place-badge{
+    position:absolute; top:-4px; right:-4px;
+    min-width:14px; height:14px; border-radius:50%;
+    background:#FFC833; color:#3A2A00;
+    font-size:9px; font-weight:700; line-height:14px; text-align:center;
+    border:1px solid #232B3C;
+  }
+  .place-pin.rated{ border-color:#FFC833; }
   .place-pin{
-    width:26px; height:26px; border-radius:50%;
+    position:relative; width:26px; height:26px; border-radius:50%;
     background:rgba(35,43,60,.88); border:1.5px solid #F3ECDC;
     display:flex; align-items:center; justify-content:center;
     font-size:14px; box-shadow:0 2px 6px rgba(0,0,0,.35);
@@ -276,7 +293,7 @@
     </svg>
   </div>
   <div id="banner">Chargement…</div>
-  <div class="overlay" id="verBadge">v0.13</div>
+  <div class="overlay" id="verBadge">v0.14</div>
   <div id="loader"><div class="ring"></div></div>
 </div>
 
@@ -343,7 +360,8 @@ const state = {
   buildings:[],          // {latlngs:[[lat,lon]...], h}
   loadedBounds:null, loading:false, netFailed:false,
   playing:false, marker:null, // marqueur du dernier lieu recherché
-  placesLayer:null, placesVisible:true
+  placesLayer:null, placesVisible:true,
+  ratings:{}, lastPlaces:[]
 };
 
 /* ── Carte Leaflet ── */
@@ -402,15 +420,78 @@ function parseHeight(t){
   if(t["building:levels"]){ const n=parseFloat(t["building:levels"]); if(n>0) return Math.min(n*3+2,120); }
   return 16;
 }
+/* ── Carnet de favoris : notes 1-5 soleils, stockées sur l'appareil ──
+   Clé = coordonnées arrondies + nom, pour retrouver un lieu d'une session à l'autre. */
+const RATINGS_KEY = "sunchill.ratings.v1";
+function loadRatings(){
+  try{ return JSON.parse(localStorage.getItem(RATINGS_KEY)) || {}; }
+  catch(e){ return {}; }
+}
+function saveRatings(r){
+  try{ localStorage.setItem(RATINGS_KEY, JSON.stringify(r)); }
+  catch(e){ /* stockage plein ou refusé : on continue sans planter */ }
+}
+function placeKey(lat, lon, name){
+  return lat.toFixed(5)+","+lon.toFixed(5)+"|"+(name||"");
+}
+function getRating(lat, lon, name){
+  return state.ratings[placeKey(lat,lon,name)] || 0;
+}
+function setRating(lat, lon, name, stars){
+  const k = placeKey(lat,lon,name);
+  if(stars === 0) delete state.ratings[k];
+  else state.ratings[k] = stars;
+  saveRatings(state.ratings);
+}
+/* Contenu du popup : nom + 5 soleils cliquables */
+function ratingPopupHtml(lat, lon, name){
+  const cur = getRating(lat, lon, name);
+  let suns = '<div class="rate-row" data-lat="'+lat+'" data-lon="'+lon+'" data-name="'+
+             String(name).replace(/"/g,"&quot;")+'">';
+  for(let i=1;i<=5;i++){
+    suns += '<span class="rate-sun'+(i<=cur?" on":"")+'" data-star="'+i+'">☀</span>';
+  }
+  suns += '</div>';
+  const hint = cur ? '<div class="rate-hint">Votre note : '+cur+'/5 · retoucher la même pour effacer</div>'
+                   : '<div class="rate-hint">Notez ce spot</div>';
+  return '<div class="place-popup"><b>'+name+'</b>'+suns+hint+'</div>';
+}
+/* Un seul écouteur global : capte les clics sur les soleils de n'importe quel popup */
+document.addEventListener("click", e=>{
+  const sun = e.target.closest(".rate-sun");
+  if(!sun) return;
+  const row = sun.closest(".rate-row");
+  const lat = parseFloat(row.dataset.lat), lon = parseFloat(row.dataset.lon);
+  const name = row.dataset.name;
+  const star = parseInt(sun.dataset.star, 10);
+  // recliquer la note actuelle l'efface
+  const next = (getRating(lat,lon,name) === star) ? 0 : star;
+  setRating(lat, lon, name, next);
+  // mise à jour immédiate du popup ouvert
+  row.querySelectorAll(".rate-sun").forEach(el=>{
+    el.classList.toggle("on", parseInt(el.dataset.star,10) <= next);
+  });
+  const hint = row.parentElement.querySelector(".rate-hint");
+  if(hint) hint.textContent = next ? "Votre note : "+next+"/5 · retoucher la même pour effacer"
+                                   : "Notez ce spot";
+  if(state.placesLayer) refreshPlaces(state.lastPlaces || []);
+});
+
 function refreshPlaces(list){
   if(state.placesLayer) map.removeLayer(state.placesLayer);
+  state.lastPlaces = list;
   const group = L.layerGroup();
   for(const p of list){
+    const stars = getRating(p.lat, p.lon, p.name);
+    const badge = stars ? '<span class="place-badge">'+stars+'</span>' : '';
     const icon = L.divIcon({
-      className:"", html:'<div class="place-pin">'+p.icon+'</div>',
+      className:"",
+      html:'<div class="place-pin'+(stars?" rated":"")+'">'+p.icon+badge+'</div>',
       iconSize:[26,26], iconAnchor:[13,13]
     });
-    L.marker([p.lat, p.lon], {icon}).bindPopup(p.name).addTo(group);
+    L.marker([p.lat, p.lon], {icon})
+      .bindPopup(ratingPopupHtml(p.lat, p.lon, p.name))
+      .addTo(group);
   }
   state.placesLayer = group;
   if(state.placesVisible) group.addTo(map);
@@ -808,6 +889,7 @@ adClose.addEventListener("click", ()=>{ adOverlay.style.display = "none"; });
     setTimeout(()=>setBanner("🌙 Il fait nuit en ce moment — curseur placé à 14:00 pour la démonstration. Glissez-le pour explorer la journée.", false), 400);
   }
   slider.value = state.minutes;
+  state.ratings = loadRatings();
   resizeCanvas();
   updateBubble();
   loadBuildings();
