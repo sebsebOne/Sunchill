@@ -157,19 +157,14 @@
   }
   #placesBtn.active{ opacity:1; border-color:#FFC833; }
   #verBadge{
-    top:3.4rem; right:.6rem; z-index:900;
+    top:3.1rem; right:.6rem; z-index:900;
     background:rgba(30,36,51,.75); border:1px solid #39435C; border-radius:7px;
     padding:.1rem .4rem; font-size:.62rem; color:#8E99B3; position:absolute;
   }
   #compass{
-    position:absolute; top:.6rem; right:.6rem; z-index:900;
-    width:34px; height:34px; border-radius:50%;
-    background:rgba(30,36,51,.85); border:1px solid #46536F;
-    display:flex; align-items:center; justify-content:center;
-  }
-  #compassArrow{
-    color:#E5484D; font-size:1.05rem; line-height:1;
-    text-shadow:0 1px 3px rgba(0,0,0,.5);
+    position:absolute; top:.6rem; right:.7rem; z-index:900;
+    pointer-events:none;
+    filter:drop-shadow(0 1px 3px rgba(0,0,0,.45));
   }
   .place-pin{
     width:26px; height:26px; border-radius:50%;
@@ -274,9 +269,14 @@
     <div id="searchResults"></div>
   </div>
   <div id="suninfo" style="display:none"></div>
-  <div id="compass" title="Nord"><div id="compassArrow">▲</div></div>
+  <div id="compass" title="Nord">
+    <svg viewBox="0 0 24 40" width="22" height="36" xmlns="http://www.w3.org/2000/svg">
+      <polygon points="12,1 19,20 12,17 5,20" fill="#E5484D" stroke="rgba(20,24,40,.45)" stroke-width="1"/>
+      <polygon points="12,39 19,20 12,23 5,20" fill="#EDEAE2" stroke="rgba(20,24,40,.45)" stroke-width="1"/>
+    </svg>
+  </div>
   <div id="banner">Chargement…</div>
-  <div class="overlay" id="verBadge">v0.12</div>
+  <div class="overlay" id="verBadge">v0.13</div>
   <div id="loader"><div class="ring"></div></div>
 </div>
 
