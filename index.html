@@ -54,10 +54,11 @@
   .leaflet-control-attribution{font-size:9px !important;}
   /* ── Loupe & recherche ── */
   #searchBtn{
-    position:absolute; top:.6rem; left:.6rem; z-index:900;
-    width:40px; height:40px; border-radius:50%; cursor:pointer;
-    background:rgba(30,36,51,.85); border:1px solid #46536F;
-    color:var(--cream); font-size:1rem;
+    position:absolute; top:.55rem; left:.6rem; z-index:900;
+    width:44px; height:44px; border-radius:50%; cursor:pointer;
+    background:transparent; border:none;
+    font-size:1.5rem;
+    filter:drop-shadow(0 1px 3px rgba(0,0,0,.55));
   }
   #locateBtn{
     position:absolute; top:3.4rem; left:.6rem; z-index:900;
@@ -199,14 +200,12 @@
     font-size:14px; box-shadow:0 2px 6px rgba(0,0,0,.35);
   }
   #loader{
-    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
-    z-index:920; display:none; pointer-events:none;
+    display:none; margin-left:.55rem;
   }
   #loader .ring{
-    width:44px; height:44px; border-radius:50%;
-    border:5px solid rgba(35,43,60,.35); border-top-color:#FFC833;
+    width:16px; height:16px; border-radius:50%;
+    border:2.5px solid rgba(70,83,111,.5); border-top-color:#FFC833;
     animation:spin .8s linear infinite;
-    filter:drop-shadow(0 2px 6px rgba(0,0,0,.35));
   }
   @keyframes spin{to{transform:rotate(360deg);}}
   /* ── Pin de recherche ── */
@@ -284,6 +283,7 @@
 
 <header>
   <div class="logo"><span class="disc"></span>Sun<b>Chill</b></div>
+  <div id="loader"><div class="ring"></div></div>
   <span class="spacer"></span>
   <input type="date" id="dateInput" title="Date">
 </header>
@@ -309,8 +309,8 @@
     </svg>
   </div>
   <div id="banner">Chargement…</div>
-  <div class="overlay" id="verBadge">v0.18</div>
-  <div id="loader"><div class="ring"></div></div>
+  <div class="overlay" id="verBadge">v0.19</div>
+
 </div>
 
 <div id="controls">
@@ -377,6 +377,7 @@ const state = {
   loadedBounds:null, loading:false, netFailed:false,
   playing:false, marker:null, // marqueur du dernier lieu recherché
   placesLayer:null, placesVisible:true, metroLayer:null, heightSource:null,
+  water:[], waterLines:[],
   ratings:{}, lastPlaces:[]
 };
 
@@ -629,14 +630,21 @@ async function loadBuildings(){
        - IGN BD TOPO  → bâtiments avec hauteurs mesurées (France)
        - OpenStreetMap → commerces et stations de métro (partout) */
     const ignPromise = fetchIGNBuildings(S, Wst, N, Est).catch(()=>null);
-    const osmPromise = fetchOverpass(`[out:json][timeout:25];(way["building"](${bbox});node["amenity"~"^(cafe|bar|restaurant|pub|fast_food|ice_cream|biergarten)$"](${bbox});node["railway"="station"]["station"="subway"](${bbox});node["railway"="subway_entrance"](${bbox}););out geom;out;`);
+    const osmPromise = fetchOverpass(`[out:json][timeout:25];(way["building"](${bbox});way["natural"="water"](${bbox});way["waterway"~"^(river|stream|canal)$"](${bbox});node["amenity"~"^(cafe|bar|restaurant|pub|fast_food|ice_cream|biergarten)$"](${bbox});node["railway"="station"]["station"="subway"](${bbox});node["railway"="subway_entrance"](${bbox}););out geom;out;`);
     const [ignBuildings, data] = await Promise.all([ignPromise, osmPromise]);
 
-    const bl = [], pl = [], mt = [];
+    const bl = [], pl = [], mt = [], wp = [], wlines = [];
     const ICONS = {cafe:"☕",bar:"🍸",restaurant:"🍽️",pub:"🍺",fast_food:"🍔",ice_cream:"🍦",biergarten:"🍻"};
     for(const el of data.elements){
-      if(el.type==="way" && el.geometry && el.geometry.length>3){
-        bl.push({latlngs: el.geometry.map(g=>[g.lat,g.lon]), h: parseHeight(el.tags)});
+      if(el.type==="way" && el.geometry){
+        const t = el.tags || {};
+        if(t.natural === "water" && el.geometry.length>3){
+          wp.push(el.geometry.map(g=>[g.lat,g.lon]));
+        } else if(t.waterway && el.geometry.length>1){
+          wlines.push(el.geometry.map(g=>[g.lat,g.lon]));
+        } else if(t.building && el.geometry.length>3){
+          bl.push({latlngs: el.geometry.map(g=>[g.lat,g.lon]), h: parseHeight(t)});
+        }
       } else if(el.type==="node" && el.tags){
         const t = el.tags;
         if(t.railway === "station" || t.railway === "subway_entrance"){
@@ -647,6 +655,7 @@ async function loadBuildings(){
         }
       }
     }
+    state.water = wp; state.waterLines = wlines;
     /* hauteurs mesurées si disponibles, sinon estimations OpenStreetMap */
     state.buildings = (ignBuildings && ignBuildings.length >= 3) ? ignBuildings : bl;
     state.heightSource = (ignBuildings && ignBuildings.length >= 3) ? "IGN" : "OSM";
@@ -737,6 +746,38 @@ function render(){
   const golden = Math.max(0, Math.min(1, 1 - (alt*deg)/14));
   ctx.fillStyle = `rgb(255, ${Math.round(228 - golden*46)}, ${Math.round(135 - golden*45)})`;
   ctx.fillRect(0,0,W,H);
+
+  /* 1b — points d'eau : bassins, rivières, canaux en bleu franc */
+  if((state.water && state.water.length) || (state.waterLines && state.waterLines.length)){
+    const pA = map.latLngToContainerPoint([c.lat, c.lng]);
+    const pB = map.latLngToContainerPoint([c.lat, c.lng + 100/(111320*Math.cos(c.lat*rad))]);
+    const pxPerM = Math.abs(pB.x - pA.x) / 100;
+    ctx.fillStyle = "#5FB6DD";
+    ctx.beginPath();
+    for(const poly of (state.water||[])){
+      const s0 = map.latLngToContainerPoint(poly[0]);
+      ctx.moveTo(s0.x, s0.y);
+      for(let i=1;i<poly.length;i++){
+        const p = map.latLngToContainerPoint(poly[i]);
+        ctx.lineTo(p.x, p.y);
+      }
+      ctx.closePath();
+    }
+    ctx.fill();
+    ctx.strokeStyle = "#5FB6DD";
+    ctx.lineCap = "round"; ctx.lineJoin = "round";
+    ctx.lineWidth = Math.max(4*pxPerM, 2);
+    ctx.beginPath();
+    for(const line of (state.waterLines||[])){
+      const s0 = map.latLngToContainerPoint(line[0]);
+      ctx.moveTo(s0.x, s0.y);
+      for(let i=1;i<line.length;i++){
+        const p = map.latLngToContainerPoint(line[i]);
+        ctx.lineTo(p.x, p.y);
+      }
+    }
+    ctx.stroke();
+  }
 
   /* 2 — ombres portées : volume balayé par les murs, enroulement normalisé
         (sans cela, les faces avant/arrière s'annulent et il ne reste
