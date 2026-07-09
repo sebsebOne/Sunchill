@@ -170,11 +170,11 @@
   .rate-row{ display:flex; gap:.18rem; margin:.1rem 0 .25rem; }
   .rate-sun{
     font-size:1.15rem; line-height:1; cursor:pointer; user-select:none;
-    color:#4C5573; transition:color .12s, transform .12s;
+    color:#C9C2B2; transition:color .12s, transform .12s;
   }
   .rate-sun:hover{ transform:scale(1.15); }
-  .rate-sun.on{ color:#FFC833; text-shadow:0 0 6px rgba(255,200,51,.55); }
-  .rate-hint{ font-size:.65rem; color:#8E99B3; font-weight:400; }
+  .rate-sun.on{ color:#F5A623; text-shadow:0 0 5px rgba(245,166,35,.45); }
+  .rate-hint{ font-size:.65rem; color:#7A7365; font-weight:400; }
   .place-badge{
     position:absolute; top:-4px; right:-4px;
     min-width:14px; height:14px; border-radius:50%;
@@ -223,14 +223,15 @@
   .sun-pin::after{
     content:"☀"; transform:rotate(45deg); font-size:14px; color:#4A3300;
   }
-  .leaflet-popup-content{font-family:inherit; font-weight:600; margin:.55rem .85rem;}
+  .leaflet-popup{ opacity:1 !important; }
+  .leaflet-popup-content{font-family:inherit; font-weight:600; margin:.55rem .85rem; color:#232B3C;}
   .leaflet-popup-content-wrapper{
-    background:#232B3C !important; color:#F3ECDC !important;
-    border:1px solid #46536F; border-radius:10px;
-    box-shadow:0 6px 18px rgba(0,0,0,.5);
+    background:#FFFFFF !important; color:#232B3C !important; opacity:1 !important;
+    border:1px solid #C9C2B2; border-radius:10px;
+    box-shadow:0 6px 18px rgba(0,0,0,.28);
   }
-  .leaflet-popup-tip{ background:#232B3C !important; }
-  .leaflet-popup-close-button{ color:#8E99B3 !important; }
+  .leaflet-popup-tip{ background:#FFFFFF !important; opacity:1 !important; }
+  .leaflet-popup-close-button{ color:#8A8375 !important; }
   /* ── Pop-up pub ── */
   #adOverlay{
     position:fixed; inset:0; z-index:3000; display:none;
@@ -293,7 +294,7 @@
     </svg>
   </div>
   <div id="banner">Chargement…</div>
-  <div class="overlay" id="verBadge">v0.14</div>
+  <div class="overlay" id="verBadge">v0.15</div>
   <div id="loader"><div class="ring"></div></div>
 </div>
 
@@ -420,6 +421,14 @@ function parseHeight(t){
   if(t["building:levels"]){ const n=parseFloat(t["building:levels"]); if(n>0) return Math.min(n*3+2,120); }
   return 16;
 }
+/* Largeur réellement visible à l'écran, en mètres (indépendant de la taille d'appareil) */
+function visibleWidthMeters(){
+  const b = map.getBounds();
+  const lat = map.getCenter().lat;
+  return (b.getEast()-b.getWest()) * 111320 * Math.cos(lat*Math.PI/180);
+}
+const MAX_WIDTH_M = 200; // au-delà : bâtiments et ombres masqués (allègement)
+
 /* ── Carnet de favoris : notes 1-5 soleils, stockées sur l'appareil ──
    Clé = coordonnées arrondies + nom, pour retrouver un lieu d'une session à l'autre. */
 const RATINGS_KEY = "sunchill.ratings.v1";
@@ -502,8 +511,8 @@ function scheduleLoad(){
   loadTimer = setTimeout(loadBuildings, 500);
 }
 async function loadBuildings(){
-  if(map.getZoom() < 16){
-    setBanner("Zoomez davantage pour afficher l'ensoleillement (ombres à partir du zoom 16).", false);
+  if(visibleWidthMeters() > MAX_WIDTH_M){
+    setBanner("Zoomez pour afficher l'ensoleillement (vue < 200 m).", false);
     state.buildings = []; state.loadedBounds = null; render();
     return;
   }
@@ -612,7 +621,7 @@ function render(){
     return;
   }
   /* sans bâtiments chargés : pas de masque (carte normale) */
-  if(!state.buildings.length || map.getZoom() < 16) return;
+  if(!state.buildings.length || visibleWidthMeters() > MAX_WIDTH_M) return;
 
   const mPerLat = 110574, mPerLon = 111320*Math.cos(c.lat*rad);
   const len = 1/Math.tan(alt);
