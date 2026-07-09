@@ -166,7 +166,7 @@
     pointer-events:none;
     filter:drop-shadow(0 1px 3px rgba(0,0,0,.45));
   }
-  .place-popup b{ display:block; margin-bottom:.35rem; font-size:.9rem; }
+  .place-popup b{ display:block; margin-bottom:.4rem; font-size:.95rem; color:#1E2433; }
   .rate-row{ display:flex; gap:.18rem; margin:.1rem 0 .25rem; }
   .rate-sun{
     font-size:1.15rem; line-height:1; cursor:pointer; user-select:none;
@@ -183,9 +183,18 @@
     border:1px solid #232B3C;
   }
   .place-pin.rated{ border-color:#FFC833; }
+  .metro-pin{
+    width:18px; height:18px; border-radius:50%;
+    background:#00814F; color:#FFFFFF;
+    border:1.5px solid #FFFFFF;
+    display:flex; align-items:center; justify-content:center;
+    font-size:11px; font-weight:700; line-height:1;
+    box-shadow:0 1px 4px rgba(0,0,0,.35);
+    opacity:.9;
+  }
   .place-pin{
     position:relative; width:26px; height:26px; border-radius:50%;
-    background:rgba(35,43,60,.88); border:1.5px solid #F3ECDC;
+    background:#232B3C; border:1.5px solid #F3ECDC;
     display:flex; align-items:center; justify-content:center;
     font-size:14px; box-shadow:0 2px 6px rgba(0,0,0,.35);
   }
@@ -223,14 +232,20 @@
   .sun-pin::after{
     content:"☀"; transform:rotate(45deg); font-size:14px; color:#4A3300;
   }
-  .leaflet-popup{ opacity:1 !important; }
+  .leaflet-popup,
+  .leaflet-fade-anim .leaflet-popup,
+  .leaflet-fade-anim .leaflet-map-pane .leaflet-popup{
+    opacity:1 !important; transition:none !important;
+  }
   .leaflet-popup-content{font-family:inherit; font-weight:600; margin:.55rem .85rem; color:#232B3C;}
   .leaflet-popup-content-wrapper{
-    background:#FFFFFF !important; color:#232B3C !important; opacity:1 !important;
-    border:1px solid #C9C2B2; border-radius:10px;
-    box-shadow:0 6px 18px rgba(0,0,0,.28);
+    background:#FFFFFF !important; background-color:#FFFFFF !important;
+    color:#232B3C !important; opacity:1 !important;
+    border:1px solid #B9B1A0; border-radius:10px;
+    box-shadow:0 8px 22px rgba(0,0,0,.35);
   }
-  .leaflet-popup-tip{ background:#FFFFFF !important; opacity:1 !important; }
+  .leaflet-popup-tip{ background:#FFFFFF !important; background-color:#FFFFFF !important;
+    opacity:1 !important; box-shadow:none; }
   .leaflet-popup-close-button{ color:#8A8375 !important; }
   /* ── Pop-up pub ── */
   #adOverlay{
@@ -294,7 +309,7 @@
     </svg>
   </div>
   <div id="banner">Chargement…</div>
-  <div class="overlay" id="verBadge">v0.15</div>
+  <div class="overlay" id="verBadge">v0.16</div>
   <div id="loader"><div class="ring"></div></div>
 </div>
 
@@ -361,7 +376,7 @@ const state = {
   buildings:[],          // {latlngs:[[lat,lon]...], h}
   loadedBounds:null, loading:false, netFailed:false,
   playing:false, marker:null, // marqueur du dernier lieu recherché
-  placesLayer:null, placesVisible:true,
+  placesLayer:null, placesVisible:true, metroLayer:null,
   ratings:{}, lastPlaces:[]
 };
 
@@ -486,6 +501,30 @@ document.addEventListener("click", e=>{
   if(state.placesLayer) refreshPlaces(state.lastPlaces || []);
 });
 
+/* Stations de métro : petit « M » discret pour se repérer.
+   (À Paris la couleur appartient à la ligne, pas à la station : on garde
+    le vert-bleu RATP classique, uniforme et sobre.) */
+function refreshMetro(list){
+  if(state.metroLayer) map.removeLayer(state.metroLayer);
+  const group = L.layerGroup();
+  const seen = new Set();
+  for(const m of list){
+    // une seule pastille par station : on ignore les bouches multiples proches
+    const k = m.name + "|" + m.lat.toFixed(3) + "," + m.lon.toFixed(3);
+    if(seen.has(k)) continue;
+    seen.add(k);
+    const icon = L.divIcon({
+      className:"", html:'<div class="metro-pin">M</div>',
+      iconSize:[18,18], iconAnchor:[9,9]
+    });
+    L.marker([m.lat, m.lon], {icon, interactive:true})
+      .bindPopup('<div class="place-popup"><b>'+m.name+'</b><div class="rate-hint">Station de métro</div></div>')
+      .addTo(group);
+  }
+  state.metroLayer = group;
+  group.addTo(map);
+}
+
 function refreshPlaces(list){
   if(state.placesLayer) map.removeLayer(state.placesLayer);
   state.lastPlaces = list;
@@ -535,18 +574,25 @@ async function loadBuildings(){
   const hLon = Math.min((b.getEast()-b.getWest())/2, 0.0078);
   const bbox = [cLat-hLat, cLon-hLon, cLat+hLat, cLon+hLon].map(v=>v.toFixed(5)).join(",");
   try{
-    const data = await fetchOverpass(`[out:json][timeout:25];(way["building"](${bbox});node["amenity"~"^(cafe|bar|restaurant|pub|fast_food|ice_cream|biergarten)$"](${bbox}););out geom;out;`);
-    const bl = [], pl = [];
+    const data = await fetchOverpass(`[out:json][timeout:25];(way["building"](${bbox});node["amenity"~"^(cafe|bar|restaurant|pub|fast_food|ice_cream|biergarten)$"](${bbox});node["railway"="station"]["station"="subway"](${bbox});node["railway"="subway_entrance"](${bbox}););out geom;out;`);
+    const bl = [], pl = [], mt = [];
     const ICONS = {cafe:"☕",bar:"🍸",restaurant:"🍽️",pub:"🍺",fast_food:"🍔",ice_cream:"🍦",biergarten:"🍻"};
     for(const el of data.elements){
       if(el.type==="way" && el.geometry && el.geometry.length>3){
         bl.push({latlngs: el.geometry.map(g=>[g.lat,g.lon]), h: parseHeight(el.tags)});
-      } else if(el.type==="node" && el.tags && el.tags.amenity && el.tags.name){
-        pl.push({lat:el.lat, lon:el.lon, name:el.tags.name, icon: ICONS[el.tags.amenity]||"📍"});
+      } else if(el.type==="node" && el.tags){
+        const t = el.tags;
+        if(t.railway === "station" || t.railway === "subway_entrance"){
+          mt.push({lat:el.lat, lon:el.lon, name:t.name||"Métro",
+                   entrance: t.railway === "subway_entrance"});
+        } else if(t.amenity && t.name){
+          pl.push({lat:el.lat, lon:el.lon, name:t.name, icon: ICONS[t.amenity]||"📍"});
+        }
       }
     }
     state.buildings = bl;
     refreshPlaces(pl);
+    refreshMetro(mt);
     state.loadedBounds = b;
     state.netFailed = false;
     setBanner("", false); /* succès : rien à afficher */
