@@ -309,7 +309,7 @@
     </svg>
   </div>
   <div id="banner">Chargement…</div>
-  <div class="overlay" id="verBadge">v0.16</div>
+  <div class="overlay" id="verBadge">v0.17</div>
   <div id="loader"><div class="ring"></div></div>
 </div>
 
@@ -376,7 +376,7 @@ const state = {
   buildings:[],          // {latlngs:[[lat,lon]...], h}
   loadedBounds:null, loading:false, netFailed:false,
   playing:false, marker:null, // marqueur du dernier lieu recherché
-  placesLayer:null, placesVisible:true, metroLayer:null,
+  placesLayer:null, placesVisible:true, metroLayer:null, heightSource:null,
   ratings:{}, lastPlaces:[]
 };
 
@@ -430,6 +430,53 @@ async function fetchOverpass(query){
   }
   throw err;
 }
+/* ── Hauteurs de bâtiments : BD TOPO (IGN) en priorité ──
+   La BD TOPO couvre tout le territoire français avec des hauteurs mesurées.
+   Hors de France (ou si le service ne répond pas), on retombe sur
+   les étiquettes OpenStreetMap, puis sur une estimation par défaut. */
+const IGN_WFS = "https://data.geopf.fr/wfs/ows";
+async function fetchIGNBuildings(south, west, north, east){
+  const url = IGN_WFS + "?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature"
+    + "&TYPENAME=BDTOPO_V3:batiment&SRSNAME=EPSG:4326"
+    + "&BBOX=" + [south,west,north,east].join(",") + ",EPSG:4326"
+    + "&STARTINDEX=0&COUNT=3000&outputFormat=application/json";
+  const ctrl = new AbortController();
+  const to = setTimeout(()=>ctrl.abort(), 15000);
+  try{
+    const r = await fetch(url, {signal:ctrl.signal});
+    clearTimeout(to);
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    const geo = await r.json();
+    if(!geo.features || !geo.features.length) throw new Error("aucun bâtiment");
+    const out = [];
+    for(const f of geo.features){
+      const g = f.geometry, p = f.properties || {};
+      if(!g) continue;
+      // hauteur mesurée ; à défaut, nombre d'étages ; à défaut, valeur type
+      let h = parseFloat(p.hauteur);
+      if(!(h > 0)){
+        const et = parseFloat(p.nombre_d_etages);
+        h = (et > 0) ? et*3 + 2 : 16;
+      }
+      h = Math.min(h, 300);
+      // Polygon ou MultiPolygon : on garde le contour extérieur de chaque partie
+      const rings = (g.type === "Polygon") ? [g.coordinates[0]]
+                  : (g.type === "MultiPolygon") ? g.coordinates.map(c=>c[0])
+                  : [];
+      for(const ring of rings){
+        if(ring && ring.length > 3){
+          out.push({latlngs: ring.map(c=>[c[1], c[0]]), h}); // GeoJSON = [lon,lat]
+        }
+      }
+    }
+    if(out.length < 3) throw new Error("trop peu de bâtiments");
+    return out;
+  }catch(e){
+    clearTimeout(to);
+    throw e;
+  }
+}
+
 function parseHeight(t){
   if(!t) return 16;
   if(t.height){ const h=parseFloat(String(t.height).replace(",",".")); if(h>0) return Math.min(h,120); }
@@ -573,8 +620,15 @@ async function loadBuildings(){
   const hLat = Math.min((b.getNorth()-b.getSouth())/2, 0.0052);
   const hLon = Math.min((b.getEast()-b.getWest())/2, 0.0078);
   const bbox = [cLat-hLat, cLon-hLon, cLat+hLat, cLon+hLon].map(v=>v.toFixed(5)).join(",");
+  const [S,Wst,N,Est] = [cLat-hLat, cLon-hLon, cLat+hLat, cLon+hLon];
   try{
-    const data = await fetchOverpass(`[out:json][timeout:25];(way["building"](${bbox});node["amenity"~"^(cafe|bar|restaurant|pub|fast_food|ice_cream|biergarten)$"](${bbox});node["railway"="station"]["station"="subway"](${bbox});node["railway"="subway_entrance"](${bbox}););out geom;out;`);
+    /* deux sources en parallèle :
+       - IGN BD TOPO  → bâtiments avec hauteurs mesurées (France)
+       - OpenStreetMap → commerces et stations de métro (partout) */
+    const ignPromise = fetchIGNBuildings(S, Wst, N, Est).catch(()=>null);
+    const osmPromise = fetchOverpass(`[out:json][timeout:25];(way["building"](${bbox});node["amenity"~"^(cafe|bar|restaurant|pub|fast_food|ice_cream|biergarten)$"](${bbox});node["railway"="station"]["station"="subway"](${bbox});node["railway"="subway_entrance"](${bbox}););out geom;out;`);
+    const [ignBuildings, data] = await Promise.all([ignPromise, osmPromise]);
+
     const bl = [], pl = [], mt = [];
     const ICONS = {cafe:"☕",bar:"🍸",restaurant:"🍽️",pub:"🍺",fast_food:"🍔",ice_cream:"🍦",biergarten:"🍻"};
     for(const el of data.elements){
@@ -590,7 +644,9 @@ async function loadBuildings(){
         }
       }
     }
-    state.buildings = bl;
+    /* hauteurs mesurées si disponibles, sinon estimations OpenStreetMap */
+    state.buildings = (ignBuildings && ignBuildings.length >= 3) ? ignBuildings : bl;
+    state.heightSource = (ignBuildings && ignBuildings.length >= 3) ? "IGN" : "OSM";
     refreshPlaces(pl);
     refreshMetro(mt);
     state.loadedBounds = b;
