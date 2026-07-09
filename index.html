@@ -309,7 +309,7 @@
     </svg>
   </div>
   <div id="banner">Chargement…</div>
-  <div class="overlay" id="verBadge">v0.17</div>
+  <div class="overlay" id="verBadge">v0.18</div>
   <div id="loader"><div class="ring"></div></div>
 </div>
 
@@ -436,9 +436,11 @@ async function fetchOverpass(query){
    les étiquettes OpenStreetMap, puis sur une estimation par défaut. */
 const IGN_WFS = "https://data.geopf.fr/wfs/ows";
 async function fetchIGNBuildings(south, west, north, east){
+  /* La BBOX du WFS Géoplateforme attend l'ordre longitude,latitude
+     (ouest,sud,est,nord) — vérifié en conditions réelles. */
   const url = IGN_WFS + "?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature"
     + "&TYPENAME=BDTOPO_V3:batiment&SRSNAME=EPSG:4326"
-    + "&BBOX=" + [south,west,north,east].join(",") + ",EPSG:4326"
+    + "&BBOX=" + [west,south,east,north].join(",") + ",EPSG:4326"
     + "&STARTINDEX=0&COUNT=3000&outputFormat=application/json";
   const ctrl = new AbortController();
   const to = setTimeout(()=>ctrl.abort(), 15000);
@@ -465,7 +467,8 @@ async function fetchIGNBuildings(south, west, north, east){
                   : [];
       for(const ring of rings){
         if(ring && ring.length > 3){
-          out.push({latlngs: ring.map(c=>[c[1], c[0]]), h}); // GeoJSON = [lon,lat]
+          // GeoJSON = [lon, lat] (parfois suivi de l'altitude, ignorée)
+          out.push({latlngs: ring.map(c=>[c[1], c[0]]), h});
         }
       }
     }
