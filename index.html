@@ -184,6 +184,21 @@
     border:1px solid #232B3C;
   }
   .place-pin.rated{ border-color:#FFC833; }
+  #placeCard{
+    position:absolute; left:.6rem; right:.6rem; bottom:.65rem; z-index:1300;
+    background:#FFFFFF; color:#111111;
+    border:1px solid #A99F8C; border-radius:12px;
+    padding:.75rem 2.2rem .7rem .95rem;
+    box-shadow:0 8px 24px rgba(0,0,0,.4);
+    display:none;
+  }
+  #placeCard .card-close{
+    position:absolute; top:.4rem; right:.45rem;
+    width:26px; height:26px; border-radius:50%; border:none; cursor:pointer;
+    background:#EFEBE2; color:#555; font-size:.8rem; line-height:1;
+  }
+  #placeCard b{ display:block; font-size:1rem; color:#111111; margin-bottom:.3rem; }
+  #placeCard .rate-hint{ color:#555046; }
   .metro-pin{
     width:18px; height:18px; border-radius:50%;
     background:#00814F; color:#FFFFFF;
@@ -302,6 +317,7 @@
     <div id="searchResults"></div>
   </div>
   <div id="suninfo" style="display:none"></div>
+  <div id="placeCard"></div>
   <div id="compass" title="Nord">
     <svg viewBox="0 0 24 40" width="22" height="36" xmlns="http://www.w3.org/2000/svg">
       <polygon points="12,1 19,20 12,17 5,20" fill="#E5484D" stroke="rgba(20,24,40,.45)" stroke-width="1"/>
@@ -309,7 +325,7 @@
     </svg>
   </div>
   <div id="banner">Chargement…</div>
-  <div class="overlay" id="verBadge">v0.20</div>
+  <div class="overlay" id="verBadge">v0.21</div>
 
 </div>
 
@@ -385,6 +401,7 @@ const state = {
 const map = L.map("map", {zoomControl:true, attributionControl:true, zoomSnap:0.25, zoomDelta:0.5})
   .setView([48.8906, 2.3199], 18.5); // Métro Brochant, Paris 17ᵉ — ≈ 50 m de rayon à l'ouverture
 map.zoomControl.setPosition("bottomright");
+map.on("click", ()=>{ if(window.closeCard) closeCard(); });
 
 L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
   attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
@@ -552,6 +569,18 @@ document.addEventListener("click", e=>{
   if(state.placesLayer) refreshPlaces(state.lastPlaces || []);
 });
 
+/* Panneau d'information : remplace la bulle Leaflet (opacité totale garantie) */
+function openCard(lat, lon, name, withRating){
+  const el = document.getElementById("placeCard");
+  el.innerHTML = '<button class="card-close" onclick="closeCard()">✕</button>' +
+    (withRating ? ratingPopupHtml(lat, lon, name)
+                : '<b>'+name+'</b>');
+  el.style.display = "block";
+}
+window.closeCard = function(){
+  document.getElementById("placeCard").style.display = "none";
+};
+
 /* Stations de métro : petit « M » discret pour se repérer.
    (À Paris la couleur appartient à la ligne, pas à la station : on garde
     le vert-bleu RATP classique, uniforme et sobre.) */
@@ -569,7 +598,7 @@ function refreshMetro(list){
       iconSize:[18,18], iconAnchor:[9,9]
     });
     L.marker([m.lat, m.lon], {icon, interactive:true})
-      .bindPopup('<div class="place-popup"><b>'+m.name+'</b><div class="rate-hint">Station de métro</div></div>')
+      .on("click", ()=>openCard(m.lat, m.lon, m.name + " · Métro", false))
       .addTo(group);
   }
   state.metroLayer = group;
@@ -589,7 +618,7 @@ function refreshPlaces(list){
       iconSize:[26,26], iconAnchor:[13,13]
     });
     L.marker([p.lat, p.lon], {icon})
-      .bindPopup(ratingPopupHtml(p.lat, p.lon, p.name))
+      .on("click", ()=>openCard(p.lat, p.lon, p.name, true))
       .addTo(group);
   }
   state.placesLayer = group;
@@ -978,7 +1007,8 @@ function placeMarker(lat, lon, name){
     iconSize:[30,30], iconAnchor:[15,30], popupAnchor:[0,-30]
   });
   state.marker = L.marker([lat, lon], {icon, zIndexOffset:1000}).addTo(map)
-    .bindPopup(name).openPopup();
+    .on("click", ()=>openCard(lat, lon, name, false));
+  openCard(lat, lon, name, false);
 }
 async function doSearch(){
   const q = searchInput.value.trim();
