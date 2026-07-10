@@ -3,7 +3,7 @@
    récupère la dernière version en ligne si le réseau répond, et ne bascule
    sur la copie hors-ligne qu'en dernier recours (pas de réseau). Cela évite
    qu'une ancienne version reste bloquée en cache après une mise à jour. */
-const CACHE = "sunchill-v7";
+const CACHE = "sunchill-v0.22";
 const SHELL = ["./", "./index.html", "./manifest.json",
   "./icon-192.png", "./icon-512.png", "./icon-maskable-512.png"];
 
